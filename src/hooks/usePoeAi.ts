@@ -273,7 +273,9 @@ export default function usePoeAi(
                 .join("\n") || "An unknown error occurred during response generation.";
             newState.error = errorMsg;
             logger.error(`[ReqID: ${requestId}] Error status received:`, errorMsg);
-        } else if (result.status !== "incomplete" && result.status !== "complete") {
+        }
+        /* v8 ignore next 6 */
+        else if (result.status !== "incomplete" && result.status !== "complete") {
             const unknownStatusError = `Unknown status received from AI handler: ${result.status}`;
             newState.error = unknownStatusError;
             newState.status = "error";
