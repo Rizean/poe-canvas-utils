@@ -274,17 +274,17 @@ export default function usePoeAi(
 
         if (result.status === "error") {
             const errorMsg = result.responses
-                ?.map(msg => { // These generally should never happen, but if they do we handle them
-                    /* v8 ignore next */ // For the 'Bot' fallback
-                    const sender = msg.senderId || 'Bot';
-                    /* v8 ignore next */ // For the 'Unknown error' fallback
-                    const statusText = msg.statusText || 'Unknown error';
-                    // The 'null' part of the ternary is hard to hit if msg.status is always 'error' here and we expect a statusText for errors.
-                    /* v8 ignore next */ // This ignores the `null` part of the ternary if msg.status is always 'error'
-                    return msg.status === 'error' ? `[${sender} Error]: ${statusText}` : null;
-                })
-                .filter(Boolean)
-                .join("\n")
+                    ?.map(msg => { // These generally should never happen, but if they do we handle them
+                        /* v8 ignore next */ // For the 'Bot' fallback
+                        const sender = msg.senderId || 'Bot';
+                        /* v8 ignore next */ // For the 'Unknown error' fallback
+                        const statusText = msg.statusText || 'Unknown error';
+                        // The 'null' part of the ternary is hard to hit if msg.status is always 'error' here and we expect a statusText for errors.
+                        /* v8 ignore next */ // This ignores the `null` part of the ternary if msg.status is always 'error'
+                        return msg.status === 'error' ? `[${sender} Error]: ${statusText}` : null;
+                    })
+                    .filter(Boolean)
+                    .join("\n")
                 /* v8 ignore next */ // For the "An unknown error..." fallback
                 || "An unknown error occurred during response generation.";
             newState.error = errorMsg;
@@ -401,7 +401,6 @@ export default function usePoeAi(
     }, [logger, handlePoeResponse]);
 
 
-
     // --- sendToAI Function (Returned to Consumer) ---
 
     /**
@@ -489,7 +488,7 @@ export default function usePoeAi(
                 } else if (err instanceof Error) {
                     errorMsg = `[ReqID: ${requestId}] Error during message dispatch: ${err.message}`;
                 }
-                /* v8 ignore next 3 */ // This should never happen, but if it does we handle it
+                    /* v8 ignore next 3 */ // This should never happen, but if it does we handle it
                 else {
                     errorMsg = `[ReqID: ${requestId}] An unknown error occurred during message dispatch: ${String(err)}`;
                 }

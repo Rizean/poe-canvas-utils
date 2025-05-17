@@ -1,11 +1,11 @@
 // src/utils/tryCatch.test.ts
-import { tryCatchSync, tryCatchAsync, Result } from './tryCatch';
+import {Result, tryCatchAsync, tryCatchSync} from './tryCatch';
 
 describe('tryCatch Utilities', () => {
     // --- Synchronous Tests ---
     describe('tryCatchSync', () => {
         it('should return [data, null] for a successful synchronous function', () => {
-            const data = { id: 1, name: 'Test' };
+            const data = {id: 1, name: 'Test'};
             const fn = (): typeof data => data;
             const result: Result<typeof data, Error> = tryCatchSync(fn); // E defaults to Error
             expect(result).toEqual([data, null]);
@@ -40,7 +40,7 @@ describe('tryCatch Utilities', () => {
         });
 
         it('should wrap a non-Error (object) thrown value in an Error instance if no mapError is provided', () => {
-            const errorObject = { code: 500, description: 'Sync error as object' };
+            const errorObject = {code: 500, description: 'Sync error as object'};
             const fn = (): never => {
                 throw errorObject; // Throwing an object
             };
@@ -86,7 +86,7 @@ describe('tryCatch Utilities', () => {
     // --- Asynchronous Tests (Promises) ---
     describe('tryCatchAsync', () => {
         it('should return Promise<[data, null]> for a successful promise', async () => {
-            const data = { id: 2, value: 'Async success' };
+            const data = {id: 2, value: 'Async success'};
             const fn = () => Promise.resolve(data);
             const result = await tryCatchAsync(fn);
             expect(result).toEqual([data, null]);
@@ -117,7 +117,7 @@ describe('tryCatch Utilities', () => {
         });
 
         it('should wrap a non-Error (object) rejected value in an Error instance if no mapError is provided', async () => {
-            const rejectObject = { code: 503, reason: 'Async service unavailable object' };
+            const rejectObject = {code: 503, reason: 'Async service unavailable object'};
             const fn = () => Promise.reject(rejectObject); // Rejecting with an object
             const result = await tryCatchAsync(fn); // E defaults to Error
 
@@ -147,7 +147,7 @@ describe('tryCatch Utilities', () => {
 
             expect(result[0]).toBeNull();
             expect(result[1]).toBeInstanceOf(Error);
-            expect((result[1]as Error).message).toBe(`${mappedErrorMessage}: ${originalRejectValue}`);
+            expect((result[1] as Error).message).toBe(`${mappedErrorMessage}: ${originalRejectValue}`);
         });
 
         it('should handle synchronous errors thrown within the async function before promise creation', async () => {
@@ -182,7 +182,9 @@ describe('tryCatch Utilities', () => {
                 expect(dataS).toBe(42);
             }
 
-            const syncFnFailure = (): number => { throw new Error('fail'); };
+            const syncFnFailure = (): number => {
+                throw new Error('fail');
+            };
             const [dataF, errorF] = tryCatchSync(syncFnFailure);
             if (dataF === null) {
                 expect(errorF).toBeInstanceOf(Error);

@@ -1,6 +1,6 @@
 // src/types/Poe.test.ts
 
-import { PoeEmbedAPIError, type PoeEmbedAPIErrorType } from './Poe';
+import {PoeEmbedAPIError, type PoeEmbedAPIErrorType} from './Poe';
 
 // This test suite is mostly for code coverage so we don't have to add ignore comments to the Poe.ts file.
 

@@ -1,5 +1,5 @@
 // src/hooks/useLogger.test.ts
-import { renderHook, act } from '@testing-library/react';
+import {act, renderHook} from '@testing-library/react';
 import useLogger from './useLogger';
 
 describe('useLogger Hook', () => {
@@ -14,12 +14,18 @@ describe('useLogger Hook', () => {
 
     beforeEach(() => {
         mockConsole = {
-            log: jest.spyOn(console, 'log').mockImplementation(() => {}),
-            debug: jest.spyOn(console, 'debug').mockImplementation(() => {}),
-            info: jest.spyOn(console, 'info').mockImplementation(() => {}),
-            warn: jest.spyOn(console, 'warn').mockImplementation(() => {}),
-            error: jest.spyOn(console, 'error').mockImplementation(() => {}),
-            trace: jest.spyOn(console, 'trace').mockImplementation(() => {}),
+            log: jest.spyOn(console, 'log').mockImplementation(() => {
+            }),
+            debug: jest.spyOn(console, 'debug').mockImplementation(() => {
+            }),
+            info: jest.spyOn(console, 'info').mockImplementation(() => {
+            }),
+            warn: jest.spyOn(console, 'warn').mockImplementation(() => {
+            }),
+            error: jest.spyOn(console, 'error').mockImplementation(() => {
+            }),
+            trace: jest.spyOn(console, 'trace').mockImplementation(() => {
+            }),
         };
         jest.useFakeTimers();
     });
@@ -30,19 +36,21 @@ describe('useLogger Hook', () => {
     });
 
     it('should initialize with empty logs and a logger object', () => {
-        const { result } = renderHook(() => useLogger());
+        const {result} = renderHook(() => useLogger());
         expect(result.current.logs).toEqual([]);
         expect(result.current.logger).toBeDefined();
         expect(result.current.logger.info).toBeInstanceOf(Function);
     });
 
     it('should use "info" as default logLevel if none is provided', () => {
-        const { result, rerender } = renderHook(() => useLogger());
+        const {result, rerender} = renderHook(() => useLogger());
         act(() => {
             result.current.logger.debug('Should not be console logged for state');
             result.current.logger.info('Should be in logs');
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(1);
         expect(result.current.logs[0].type).toBe('info');
@@ -52,13 +60,15 @@ describe('useLogger Hook', () => {
     });
 
     it('should respect the provided logLevel (e.g., "debug")', () => {
-        const { result, rerender } = renderHook(() => useLogger('debug'));
+        const {result, rerender} = renderHook(() => useLogger('debug'));
         act(() => {
             result.current.logger.trace('Should not be in logs state');
             result.current.logger.debug('Debug message');
             result.current.logger.info('Info message');
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(2);
         expect(result.current.logs[0].type).toBe('debug');
@@ -71,13 +81,15 @@ describe('useLogger Hook', () => {
     });
 
     it('should respect the provided logLevel (e.g., "warn")', () => {
-        const { result, rerender } = renderHook(() => useLogger('warn'));
+        const {result, rerender} = renderHook(() => useLogger('warn'));
         act(() => {
             result.current.logger.info('Info, should not be in logs state');
             result.current.logger.warn('Warning message');
             result.current.logger.error('Error message');
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(2);
         expect(result.current.logs[0].type).toBe('warn');
@@ -90,12 +102,14 @@ describe('useLogger Hook', () => {
     });
 
     it('should handle unknown logLevel by defaulting to "info"', () => {
-        const { result, rerender } = renderHook(() => useLogger('verbose'));
+        const {result, rerender} = renderHook(() => useLogger('verbose'));
         act(() => {
             result.current.logger.debug('Debug, should not be in logs state');
             result.current.logger.info('Info message, should be in logs');
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(1);
         expect(result.current.logs[0].type).toBe('info');
@@ -106,12 +120,14 @@ describe('useLogger Hook', () => {
         const testDate = new Date(2024, 0, 15, 10, 30, 0);
         jest.setSystemTime(testDate);
 
-        const { result, rerender } = renderHook(() => useLogger('info'));
-        const logDetails = { detail: 'some data' };
+        const {result, rerender} = renderHook(() => useLogger('info'));
+        const logDetails = {detail: 'some data'};
         act(() => {
             result.current.logger.info('Test log entry', logDetails);
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(1);
         const logEntry = result.current.logs[0];
@@ -123,15 +139,17 @@ describe('useLogger Hook', () => {
     });
 
     it('should stringify additional arguments correctly', () => {
-        const { result, rerender } = renderHook(() => useLogger('debug'));
-        const obj = { a: 1, b: { c: 2 } };
+        const {result, rerender} = renderHook(() => useLogger('debug'));
+        const obj = {a: 1, b: {c: 2}};
         const arr = [1, 'test', true];
         act(() => {
             result.current.logger.debug('Object log:', obj);
             result.current.logger.debug('Array log:', arr);
             result.current.logger.debug('Multiple args:', 'first', 'second', 3);
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(3);
         // For 'Object log:', obj -> "Object log:" and [obj]
@@ -153,11 +171,13 @@ describe('useLogger Hook', () => {
         const circularObj: any = {};
         circularObj.self = circularObj;
 
-        const { result, rerender } = renderHook(() => useLogger('debug'));
+        const {result, rerender} = renderHook(() => useLogger('debug'));
         act(() => {
             result.current.logger.debug('Circular:', circularObj);
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(result.current.logs.length).toBe(1);
         // For 'Circular:', circularObj -> "Circular:" and [circularObj]
@@ -167,12 +187,14 @@ describe('useLogger Hook', () => {
     });
 // --- New tests for safeStringify coverage ---
     it('safeStringify should handle null and undefined inputs', () => {
-        const { result, rerender } = renderHook(() => useLogger('debug'));
+        const {result, rerender} = renderHook(() => useLogger('debug'));
         act(() => {
             result.current.logger.debug(null);
             result.current.logger.debug(undefined);
         });
-        act(() => { rerender(); });
+        act(() => {
+            rerender();
+        });
 
         expect(result.current.logs.length).toBe(2);
         expect(result.current.logs[0].message).toBe('null');
@@ -182,13 +204,14 @@ describe('useLogger Hook', () => {
     });
 
     it('safeStringify should handle various primitive types', () => {
-        const { result, rerender } = renderHook(() => useLogger('debug'));
+        const {result, rerender} = renderHook(() => useLogger('debug'));
         const num = 123;
         const boolTrue = true;
         const boolFalse = false;
         const sym = Symbol('testSymbol');
         // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const func = () => {};
+        const func = () => {
+        };
 
         act(() => {
             result.current.logger.debug(num);
@@ -197,7 +220,9 @@ describe('useLogger Hook', () => {
             result.current.logger.debug(sym);
             result.current.logger.debug(func);
         });
-        act(() => { rerender(); });
+        act(() => {
+            rerender();
+        });
 
         expect(result.current.logs.length).toBe(5);
         expect(result.current.logs[0].message).toBe('123');
@@ -215,11 +240,13 @@ describe('useLogger Hook', () => {
 
     // --- New test for addLog with no arguments ---
     it('addLog should handle calls with no arguments (empty data array)', () => {
-        const { result, rerender } = renderHook(() => useLogger('info'));
+        const {result, rerender} = renderHook(() => useLogger('info'));
         act(() => {
             result.current.logger.info(); // Call with no arguments
         });
-        act(() => { rerender(); });
+        act(() => {
+            rerender();
+        });
 
         expect(result.current.logs.length).toBe(1);
         expect(result.current.logs[0].type).toBe('info');
@@ -229,7 +256,7 @@ describe('useLogger Hook', () => {
     // --- End of new tests ---
 
     it('should flush pending logs on re-render/effect (original test logic)', () => {
-        const { result, rerender } = renderHook(() => useLogger('info'));
+        const {result, rerender} = renderHook(() => useLogger('info'));
 
         act(() => {
             result.current.logger.info('First log');
@@ -237,7 +264,9 @@ describe('useLogger Hook', () => {
         // Before rerender, logs state is empty, pendingRef has the item
         expect(result.current.logs.length).toBe(0);
 
-        act(() => { rerender(); }); // This rerender triggers the useEffect
+        act(() => {
+            rerender();
+        }); // This rerender triggers the useEffect
 
         expect(result.current.logs.length).toBe(1);
         expect(result.current.logs[0].message).toBe('First log');
@@ -249,7 +278,9 @@ describe('useLogger Hook', () => {
         // Before next rerender, logs state has 1 item, pendingRef has 2 new items
         expect(result.current.logs.length).toBe(1);
 
-        act(() => { rerender(); }); // This rerender triggers the useEffect again
+        act(() => {
+            rerender();
+        }); // This rerender triggers the useEffect again
 
         expect(result.current.logs.length).toBe(3); // 1 (old) + 2 (new)
         expect(result.current.logs[1].message).toBe('Second log');
@@ -257,14 +288,16 @@ describe('useLogger Hook', () => {
     });
 
     it('logger functions should be memoized', () => {
-        const { result, rerender } = renderHook(() => useLogger());
+        const {result, rerender} = renderHook(() => useLogger());
         const initialLogger = result.current.logger;
-        act(() => { rerender(); });
+        act(() => {
+            rerender();
+        });
         expect(result.current.logger).toBe(initialLogger);
     });
 
     it('should call the correct console method for each log type and store in state', () => {
-        const { result, rerender } = renderHook(() => useLogger('trace'));
+        const {result, rerender} = renderHook(() => useLogger('trace'));
         act(() => {
             result.current.logger.trace('trace message');
             result.current.logger.debug('debug message');
@@ -273,7 +306,9 @@ describe('useLogger Hook', () => {
             result.current.logger.warn('warn message');
             result.current.logger.error('error message');
         });
-        act(() => { rerender(); }); // Flush effect
+        act(() => {
+            rerender();
+        }); // Flush effect
 
         expect(mockConsole.trace).toHaveBeenCalledWith('trace message');
         expect(mockConsole.debug).toHaveBeenCalledWith('debug message');

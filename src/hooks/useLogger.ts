@@ -1,18 +1,24 @@
 // src/hooks/useLogger.ts
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import { tryCatchSync } from "../utils/tryCatch";
+import {tryCatchSync} from "../utils/tryCatch";
 
 export interface LogEntry {
     type: string;
     message: unknown; // Keep as unknown to allow flexibility, stringified for storage
     timestamp: Date;
 }
+
 export interface Logger {
     debug(...data: unknown[]): void;
+
     error(...data: unknown[]): void;
+
     info(...data: unknown[]): void;
+
     log(...data: unknown[]): void;
+
     trace(...data: unknown[]): void;
+
     warn(...data: unknown[]): void;
 }
 

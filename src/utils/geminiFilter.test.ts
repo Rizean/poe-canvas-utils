@@ -1,5 +1,5 @@
 // src/utils/geminiFilter.test.ts
-import { applyGeminiThinkingFilter } from './geminiFilter';
+import {applyGeminiThinkingFilter} from './geminiFilter';
 
 describe('applyGeminiThinkingFilter', () => {
     it('should return an empty string if input is empty', () => {
