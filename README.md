@@ -1,5 +1,7 @@
 # Poe.com Canvas Utils
 
+[![codecov](https://codecov.io/gh/Rizean/poe-canvas-utils/graph/badge.svg?token=YUYY0IKPAX)](https://codecov.io/gh/Rizean/poe-canvas-utils)
+
 Utility hooks and functions for building applications on the Poe platform, particularly for Poe Canvas Apps. This library provides tools for AI interaction, client-side logging, functional error handling, text filtering, and data persistence via file download/upload.
 
 ## Features
@@ -424,4 +426,3 @@ Contributions are welcome! Please open an issue or submit a pull request to the 
 ## License
 
 [Apache-2.0 License](./LICENSE)
-```
