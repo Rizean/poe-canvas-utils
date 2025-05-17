@@ -1,10 +1,10 @@
 // src/hooks/useLogger.ts
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {tryCatch} from "../utils/tryCatch.ts";
+import { tryCatchSync } from "../utils/tryCatch";
 
 export interface LogEntry {
     type: string;
-    message: unknown;
+    message: unknown; // Keep as unknown to allow flexibility, stringified for storage
     timestamp: Date;
 }
 export interface Logger {
@@ -21,16 +21,23 @@ export interface UseLoggerReturn {
     logger: Logger;
 }
 
-const safeStringify = (data: unknown) => {
+const safeStringify = (data: unknown): string => {
     if (typeof data === "string") {
         return data;
     }
-    if (typeof data === "object") {
-        const [parsed, error] = tryCatch(() => JSON.stringify(data));
+    if (data === null || data === undefined) {
+        return String(data);
+    }
+    // For objects and arrays, attempt to JSON.stringify
+    if (typeof data === "object" || Array.isArray(data)) {
+        const [parsed, error] = tryCatchSync<string>(() => JSON.stringify(data));
+        // If JSON.stringify fails (e.g., circular object), fallback to String(data)
         return error ? String(data) : parsed;
     }
+    // For other primitives (numbers, booleans, symbols, functions)
     return String(data);
-}
+};
+
 
 type LogType = "debug" | "info" | "warn" | "error" | "log" | "trace";
 
@@ -58,38 +65,46 @@ export default function useLogger(logLevelInput?: string): UseLoggerReturn {
         return 'info'; // Default log level
     }, [logLevelInput]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const addLog = useCallback((type: LogType, ...data: any[]) => {
+    const addLog = useCallback((type: LogType, ...data: unknown[]) => {
             if (logLevelsMap[type] < logLevelsMap[logLevel]) {
+                // Still log to console even if not stored in stateful logs
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (console as any)[type]?.(...data);
                 return;
             }
 
-            let message = data[0];
-            if (data.length > 1) {
-                message = `${message}  ${safeStringify(data.slice(1))}`;
+            let messageString: string;
+            if (data.length === 0) {
+                messageString = ""; // Or handle as an error/warning
+            } else if (data.length === 1) {
+                messageString = safeStringify(data[0]);
+            } else {
+                // data[0] is the primary message, data.slice(1) are additional parts
+                const primaryMessage = safeStringify(data[0]);
+                const additionalDataString = safeStringify(data.slice(1)); // Stringify the array of additional args
+                messageString = `${primaryMessage}  ${additionalDataString}`;
             }
+
             const entry: LogEntry = {
                 type,
-                message,
+                message: messageString,
                 timestamp: new Date(),
             };
-            // always console.log immediately
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (console as any)[type]?.(...data);
 
-            // but only push into a ref, not state
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (console as any)[type]?.(...data); // Log original data to console
+
             pendingRef.current.push(entry);
         },
         [logLevel]
     );
 
-    // once per tick (or whenever), flush pending logs into React state
     useEffect(() => {
-        if (pendingRef.current.length) {
+        if (pendingRef.current.length > 0) {
             setLogs(ls => [...ls, ...pendingRef.current]);
             pendingRef.current = [];
         }
-    }); // Runs on every render, which is fine for flushing logs
+    }); // Runs on every render
 
     const logger: Logger = useMemo(
         () => ({
