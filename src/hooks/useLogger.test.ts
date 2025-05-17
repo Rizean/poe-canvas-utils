@@ -209,9 +209,10 @@ describe('useLogger Hook', () => {
         const boolTrue = true;
         const boolFalse = false;
         const sym = Symbol('testSymbol');
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const func = () => {
-        };
+
+        // @formatter:off
+        const func = () => {};
+        // @formatter:on
 
         act(() => {
             result.current.logger.debug(num);
