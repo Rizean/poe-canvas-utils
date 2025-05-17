@@ -25,6 +25,11 @@ export type { Result, Success, Failure } from './utils/tryCatch'; // Exporting h
 // ---- geminiFilter ----
 export { applyGeminiThinkingFilter } from './utils/geminiFilter';
 
+// ---- storage ----
+export { saveDataToFile, loadDataFromFile } from './utils/storage'; // Updated function names
+export type { VersionedData, LoadOptions as StorageLoadOptions } from './utils/storage';
+
+
 // ---- Poe.ts ----
 export type {
     Message as PoeMessage,
