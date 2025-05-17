@@ -1,5 +1,5 @@
 {
-  "name": "@your-npm-username/poe-canvas-utils",
+  "name": "@rizean/poe-canvas-utils",
   "version": "0.1.0",
   "description": "Utility hooks for Poe Canvas integration and logging.",
   "type": "module",
@@ -21,6 +21,7 @@
     "build": "tsc && vite build",
     "prepublishOnly": "pnpm build",
     "test": "jest --watchAll --passWithNoTests",
+    "global-link": "pnpm link --global",
     "--AI-Prompts--": "echo --AI-Prompts--",
     "ph-src": "ph --code src --ignore \"**/*.test.ts\"",
     "ph-src-test": "ph --code src",
@@ -54,14 +55,14 @@
     "logger",
     "utils"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Rizean <rizean@gmail.com>",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/poe-canvas-utils.git"
+    "url": "git+https://github.com/rizean/poe-canvas-utils.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/poe-canvas-utils/issues"
+    "url": "https://github.com/rizean/poe-canvas-utils/issues"
   },
-  "homepage": "https://github.com/your-username/poe-canvas-utils#readme"
+  "homepage": "https://github.com/rizean/poe-canvas-utils#readme"
 }
