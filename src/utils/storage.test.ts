@@ -1,5 +1,4 @@
 // src/utils/storage.test.ts
-
 import { saveDataToFile, loadDataFromFile, VersionedData, LoadOptions } from './storage';
 
 interface MyTestDataV1 extends VersionedData {
@@ -17,21 +16,25 @@ interface MyTestDataV2 extends VersionedData {
 let mockAnchorClick: jest.Mock;
 let mockCreateObjectURL: jest.Mock;
 let mockRevokeObjectURL: jest.Mock;
-let mockFileInputChangeCallback: ((event: Partial<Event>) => void) | null = null;
+let mockFileInputChangeCallback: ((event: Partial<Event>) => Promise<void> | void) | null = null; // Can be async
 let mockFileInputClick: jest.Mock;
-let mockFileReaderInstance: {
+
+// Redefine mockFileReaderInstance structure slightly for clarity
+let mockFileReader: {
     readAsText: jest.Mock;
     result: string | ArrayBuffer | null;
-    onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => any) | null;
-    onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => any) | null;
+    onload: ((ev: Partial<ProgressEvent<FileReader>>) => void) | null; // Make event partial
+    onerror: ((ev: Partial<ProgressEvent<FileReader>>) => void) | null; // Make event partial
+    _triggerOnload: (content: string | ArrayBuffer | null) => void;
+    _triggerOnerror: () => void;
 };
 
 
 // Helper to simulate file selection
-function simulateFileSelection(fileContent: string | object | null, fileName = 'test.json') {
+async function simulateFileSelection(fileContent: string | object | null, fileName = 'test.json') {
     let contentString: string | undefined;
     if (fileContent === null) {
-        contentString = undefined; // Explicitly undefined for no file
+        contentString = undefined;
     } else if (typeof fileContent === 'string') {
         contentString = fileContent;
     } else {
@@ -40,19 +43,13 @@ function simulateFileSelection(fileContent: string | object | null, fileName = '
 
     const file = contentString !== undefined ? new File([contentString], fileName, { type: 'application/json' }) : null;
 
-    // Make the mock FileReader use this content when its readAsText is called
-    if (mockFileReaderInstance) {
-        mockFileReaderInstance.readAsText.mockImplementationOnce(function(this: any, _f: File) {
-            // Store the content on the reader instance itself for onload to use
-            // This more closely mimics how FileReader works.
-            mockFileReaderInstance.result = contentString || ''; // Use empty string if contentString is undefined
-            if (this.onload) {
-                // Ensure 'this' inside onload refers to the mockFileReaderInstance
-                this.onload({ target: mockFileReaderInstance } as unknown as ProgressEvent<FileReader>);
-            }
-        });
-    }
-
+    // The FileReader's readAsText will be called. We then simulate its async completion.
+    // The actual triggering of onload/onerror will happen from the test.
+    mockFileReader.readAsText.mockImplementationOnce((_f: File) => {
+        // Simulate that readAsText has been called, but don't immediately trigger onload/onerror.
+        // The test will do that to control the async flow.
+        mockFileReader.result = contentString || ''; // Store for when onload is triggered
+    });
 
     const mockEvent: Partial<Event> = {
         target: {
@@ -61,7 +58,11 @@ function simulateFileSelection(fileContent: string | object | null, fileName = '
     };
 
     if (mockFileInputChangeCallback) {
-        mockFileInputChangeCallback(mockEvent);
+        // The onchange handler itself in storage.ts is async.
+        // We need to await its completion if it returns a promise,
+        // though in its current form it doesn't explicitly return one from the onchange assignment.
+        // The promise we care about is the one from loadDataFromFile.
+        await Promise.resolve(mockFileInputChangeCallback(mockEvent));
     }
 }
 
@@ -102,7 +103,7 @@ describe('Storage Utility (File Based)', () => {
 
         mockCreateObjectURL = jest.fn((blob: Blob) => `blob:${blob.type}/${blob.size}`);
         mockRevokeObjectURL = jest.fn();
-        if (typeof global.URL.createObjectURL === 'undefined') { // JSDOM might not have it
+        if (typeof global.URL.createObjectURL === 'undefined') {
             global.URL.createObjectURL = mockCreateObjectURL;
             global.URL.revokeObjectURL = mockRevokeObjectURL;
         } else {
@@ -110,18 +111,29 @@ describe('Storage Utility (File Based)', () => {
             jest.spyOn(global.URL, 'revokeObjectURL').mockImplementation(mockRevokeObjectURL);
         }
 
-
-        mockFileReaderInstance = {
+        mockFileReader = {
             readAsText: jest.fn(),
-            result: null, // Initialize result
+            result: null,
             onload: null,
             onerror: null,
+            _triggerOnload: (content) => {
+                mockFileReader.result = content;
+                if (mockFileReader.onload) {
+                    mockFileReader.onload({ target: { result: mockFileReader.result } } as Partial<ProgressEvent<FileReader>>);
+                }
+            },
+            _triggerOnerror: () => {
+                if (mockFileReader.onerror) {
+                    mockFileReader.onerror({} as Partial<ProgressEvent<FileReader>>);
+                }
+            },
         };
-        jest.spyOn(global, 'FileReader').mockImplementation(() => mockFileReaderInstance as unknown as FileReader);
+        jest.spyOn(global, 'FileReader').mockImplementation(() => mockFileReader as unknown as FileReader);
 
         mockFileInputChangeCallback = null;
     });
 
+    // ... saveDataToFile tests remain the same ...
     describe('saveDataToFile', () => {
         it('should trigger download for valid data', () => {
             const data: MyTestDataV1 = { version: 1, name: 'Test User' };
@@ -158,10 +170,11 @@ describe('Storage Utility (File Based)', () => {
 
             expect(success).toBeNull();
             expect(error).toBeInstanceOf(Error);
-            expect(error?.message).toContain('circular structure'); // Or specific message from your env
+            expect(error?.message).toContain('circular structure');
             expect(mockAnchorClick).not.toHaveBeenCalled();
         });
     });
+
 
     describe('loadDataFromFile', () => {
         it('should load and parse valid JSON file with matching version', async () => {
@@ -169,9 +182,11 @@ describe('Storage Utility (File Based)', () => {
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            expect(mockFileInputClick).toHaveBeenCalledTimes(1);
+            expect(mockFileInputClick).toHaveBeenCalledTimes(1); // Input is clicked
 
-            simulateFileSelection(fileData);
+            // Simulate file selection by user and then FileReader completing
+            await simulateFileSelection(fileData); // This sets up the FileReader mock
+            mockFileReader._triggerOnload(JSON.stringify(fileData)); // Manually trigger onload
 
             const [data, error] = await loadPromise;
 
@@ -184,7 +199,9 @@ describe('Storage Utility (File Based)', () => {
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             expect(mockFileInputClick).toHaveBeenCalledTimes(1);
 
-            simulateFileSelection(null); // No file / user cancelled
+            // Simulate no file being selected (which triggers onchange with files=null)
+            await simulateFileSelection(null);
+            // No need to trigger onload/onerror as the `!files` check handles this
 
             const [data, error] = await loadPromise;
             expect(data).toBeNull();
@@ -195,7 +212,8 @@ describe('Storage Utility (File Based)', () => {
         it('should return error if file content is not valid JSON', async () => {
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            simulateFileSelection("not json");
+            await simulateFileSelection("not json");
+            mockFileReader._triggerOnload("not json");
 
 
             const [data, error] = await loadPromise;
@@ -204,11 +222,49 @@ describe('Storage Utility (File Based)', () => {
             expect(error?.message).toContain('Failed to parse JSON from file');
         });
 
+        it('should cover if fileContent is not a string (e.g. ArrayBuffer)', async () => {
+            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const loadPromise = loadDataFromFile<MyTestDataV1>(options);
+            await simulateFileSelection("valid json but will be overridden"); // File selected
+            mockFileReader._triggerOnload(new ArrayBuffer(8)); // FileReader returns ArrayBuffer
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error).toBeInstanceOf(Error);
+            expect(error?.message).toBe("Failed to read file content as text.");
+        });
+
+        it('should return error if parsed data is not an object', async () => {
+            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const loadPromise = loadDataFromFile<MyTestDataV1>(options);
+            await simulateFileSelection("123"); // Content is a valid JSON number
+            mockFileReader._triggerOnload("123");
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe("Invalid data format: Loaded file must contain an object with a 'version' property of type number.");
+        });
+
+
         it('should return error if parsed data has no version property', async () => {
             const fileContent = { name: 'No Version Prop' };
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            simulateFileSelection(fileContent);
+            await simulateFileSelection(fileContent);
+            mockFileReader._triggerOnload(JSON.stringify(fileContent));
+
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe("Invalid data format: Loaded file must contain an object with a 'version' property of type number.");
+        });
+
+        it('should return error if parsed data version is not a number', async () => {
+            const fileContent = { version: '1', name: 'String version' };
+            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const loadPromise = loadDataFromFile<MyTestDataV1>(options);
+            await simulateFileSelection(fileContent);
+            mockFileReader._triggerOnload(JSON.stringify(fileContent));
 
             const [data, error] = await loadPromise;
             expect(data).toBeNull();
@@ -224,7 +280,9 @@ describe('Storage Utility (File Based)', () => {
             const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
 
             const loadPromise = loadDataFromFile<MyTestDataV2>(options);
-            simulateFileSelection(oldData);
+            await simulateFileSelection(oldData);
+            mockFileReader._triggerOnload(JSON.stringify(oldData));
+
 
             const [data, error] = await loadPromise;
 
@@ -233,11 +291,53 @@ describe('Storage Utility (File Based)', () => {
             expect(data).toEqual({ version: 2, fullName: 'Old User for File', age: 33 });
         });
 
+        it('should return error if migration is needed but no migrate function provided', async () => {
+            const oldData: MyTestDataV1 = { version: 1, name: 'Needs Migration' };
+            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2 /* no migrate */ };
+            const loadPromise = loadDataFromFile<MyTestDataV2>(options);
+            await simulateFileSelection(oldData);
+            mockFileReader._triggerOnload(JSON.stringify(oldData));
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe(`Data version ${oldData.version} is older than current version 2, and no migration function was provided.`);
+        });
+
+        it('should return error if migration function fails to update to currentVersion', async () => {
+            const oldData: MyTestDataV1 = { version: 1, name: 'Bad Migration' };
+            const migrateFn = jest.fn((): MyTestDataV1 => ({ version: 1, name: 'Still Old' })); // Wrong version
+            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
+            const loadPromise = loadDataFromFile<MyTestDataV2>(options);
+            await simulateFileSelection(oldData);
+            mockFileReader._triggerOnload(JSON.stringify(oldData));
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe("Migration function failed to update data to the current version or version property is invalid.");
+        });
+
+
+        it('should return error if migration function throws', async () => {
+            const oldData: MyTestDataV1 = { version: 1, name: 'Error Migration' };
+            const migrateFn = jest.fn(() => { throw new Error("Kaboom migration"); });
+            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
+            const loadPromise = loadDataFromFile<MyTestDataV2>(options);
+            await simulateFileSelection(oldData);
+            mockFileReader._triggerOnload(JSON.stringify(oldData));
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe("Data migration failed: Kaboom migration");
+        });
+
+
         it('should return error if loaded data version is newer', async () => {
             const newerData: MyTestDataV2 = { version: 2, fullName: 'Future File User' };
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            simulateFileSelection(newerData);
+            await simulateFileSelection(newerData);
+            mockFileReader._triggerOnload(JSON.stringify(newerData));
+
 
             const [data, error] = await loadPromise;
             expect(data).toBeNull();
@@ -250,7 +350,9 @@ describe('Storage Utility (File Based)', () => {
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            simulateFileSelection(fileData);
+            await simulateFileSelection(fileData);
+            mockFileReader._triggerOnload(JSON.stringify(fileData));
+
 
             const [data, error] = await loadPromise;
 
@@ -265,27 +367,35 @@ describe('Storage Utility (File Based)', () => {
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
-            simulateFileSelection(fileData);
+            await simulateFileSelection(fileData);
+            mockFileReader._triggerOnload(JSON.stringify(fileData));
+
 
             const [data, error] = await loadPromise;
             expect(data).toBeNull();
             expect(error?.message).toBe('Loaded data failed validation.');
         });
 
+        it('should return error if validation function throws', async () => {
+            const fileData: MyTestDataV1 = { version: 1, name: 'Validate Me Error' };
+            const validateFn = jest.fn(() => { throw new Error("Kaboom validation"); });
+            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
+            const loadPromise = loadDataFromFile<MyTestDataV1>(options);
+            await simulateFileSelection(fileData);
+            mockFileReader._triggerOnload(JSON.stringify(fileData));
+
+            const [data, error] = await loadPromise;
+            expect(data).toBeNull();
+            expect(error?.message).toBe("Data validation failed: Kaboom validation");
+        });
+
+
         it('should handle FileReader errors', async () => {
             const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
 
-            // Configure the mock FileReader to call onerror
-            mockFileReaderInstance.readAsText.mockImplementationOnce(function(this: any) {
-                if (this.onerror) {
-                    // Ensure 'this' inside onerror refers to the mockFileReaderInstance
-                    this.onerror({ target: mockFileReaderInstance } as unknown as ProgressEvent<FileReader>);
-                }
-            });
-
-            // Simulate file selection (content doesn't matter as much as triggering the flow)
-            simulateFileSelection("any content to trigger read");
+            await simulateFileSelection("any content to trigger read");
+            mockFileReader._triggerOnerror(); // Manually trigger onerror
 
 
             const [data, error] = await loadPromise;

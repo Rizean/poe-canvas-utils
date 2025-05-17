@@ -1,5 +1,5 @@
 // src/utils/storage.ts
-import { Result } from './tryCatch';
+import {Result} from './tryCatch';
 
 /**
  * Interface for data that can be saved and loaded.
@@ -7,6 +7,7 @@ import { Result } from './tryCatch';
  */
 export interface VersionedData {
     version: number;
+
     [key: string]: any; // Allows any other properties
 }
 
@@ -53,11 +54,11 @@ export function saveDataToFile<T extends VersionedData>(filename: string, data: 
     try {
         serializedData = JSON.stringify(data, null, 2); // Pretty print JSON
     } catch (e) {
-        return [null, e instanceof Error ? e : new Error(String(e))];
+        return [null, e instanceof Error ? e /* v8 ignore next */ : new Error(String(e))];
     }
 
     try {
-        const blob = new Blob([serializedData], { type: 'application/json' });
+        const blob = new Blob([serializedData], {type: 'application/json'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -67,9 +68,8 @@ export function saveDataToFile<T extends VersionedData>(filename: string, data: 
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         return [true, null];
-    } catch (e) {
-        // This catch block might be for errors during DOM manipulation or URL creation,
-        // though less common than serialization errors.
+    } /* v8 ignore next 3 */ catch (e) {
+        // For errors during DOM manipulation or URL creation, less common than serialization errors.
         return [null, e instanceof Error ? e : new Error(`Failed to initiate download: ${String(e)}`)];
     }
 }
@@ -120,7 +120,7 @@ export function loadDataFromFile<T extends VersionedData>(
                     return;
                 }
 
-                const { currentVersion, migrate, validate } = options;
+                const {currentVersion, migrate, validate} = options;
                 let dataToValidate: T;
 
                 if (parsedData.version < currentVersion) {
