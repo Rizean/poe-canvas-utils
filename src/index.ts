@@ -8,7 +8,7 @@ export type {
     RequestOptions,
     UseAiOptions,
 } from './hooks/usePoeAi';
-export { simulationSendUserMessageResult } from './hooks/usePoeAi'; // If you want to export this helper
+export { simulationSendUserMessageResult } from './hooks/usePoeAi';
 
 // ---- useLogger ----
 export { default as useLogger } from './hooks/useLogger';
@@ -19,16 +19,15 @@ export type {
 } from './hooks/useLogger';
 
 // ---- tryCatch ----
-export { tryCatch } from './utils/tryCatch';
-// We may want to export the types in the future, but for now, we can keep them private.
-// export type { Result, Success, Failure } from './utils/tryCatch';
+export { tryCatchSync, tryCatchAsync } from './utils/tryCatch';
+export type { Result, Success, Failure } from './utils/tryCatch'; // Exporting helper types
 
 // ---- geminiFilter ----
 export { applyGeminiThinkingFilter } from './utils/geminiFilter';
 
 // ---- Poe.ts ----
 export type {
-    Message as PoeMessage, // Renaming to avoid conflict if consumer has a 'Message' type
+    Message as PoeMessage,
     MessageAttachment as PoeMessageAttachment,
     ContentType as PoeContentType,
     MessageStatus as PoeMessageStatus,
@@ -36,7 +35,6 @@ export type {
     HandlerContext as PoeHandlerContext,
     HandlerFunc as PoeHandlerFunc,
     PoeEmbedAPIErrorType,
-    // PoeEmbedAPI is a global augmentation, but exporting the error class is useful
 } from './types/Poe';
 export { PoeEmbedAPIError } from './types/Poe';
 
