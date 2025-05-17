@@ -1,7 +1,7 @@
 // src/hooks/usePoeAi.ts
 import {useCallback, useEffect, useRef, useState} from "react";
 import {type Message, type MessageStatus, PoeEmbedAPIError, type SendUserMessageResult} from "../types/Poe";
-import {tryCatchSync} from "../utils/tryCatch";
+import {tryCatchSync, tryCatchAsync} from "../utils/tryCatch"; // Added tryCatchAsync and Result
 
 // ====================================================================================
 // Interfaces and Types
@@ -169,7 +169,7 @@ export function simulationSendUserMessageResult(opts?: SimulationResponseOptions
             contentType: partialMsg.contentType || "text/plain",
             // Message status often mirrors the overall result status, but can be overridden
             status: partialMsg.status || options.status,
-            // TODO: test user defined simulated error
+            /* v8 ignore next 1 */ // Default parameter
             statusText: partialMsg.statusText || (options.status === 'error' ? "Simulated error" : undefined),
             attachments: partialMsg.attachments,
         };
@@ -213,8 +213,6 @@ export default function usePoeAi(
 
     // --- Hook Setup and State ---
 
-    // Generate a stable, unique handler name for this hook instance if not provided in options.
-    // This name is used to register with the Poe API.
     const [handlerName] = useState(() => options?.handler ?? `poeHandler_${generateRequestId()}`);
     const hookOpts = useRef(getDefaultHookOptions(options));
 
@@ -235,15 +233,9 @@ export default function usePoeAi(
 
     // --- Poe API Interaction & Response Handling ---
 
-    /**
-     * The single callback function registered with `window.Poe.registerHandler`.
-     * It receives results from the Poe API (or simulated results), identifies the
-     * corresponding request using `context.requestId`, updates the internal state
-     * for that request, and invokes the user-provided callback.
-     */
     const handlePoeResponse = useCallback((result: SendUserMessageResult, context?: { requestId?: string }) => {
         const requestId = context?.requestId;
-        /* v8 ignore next 4 */ // This is defence against Poe API changes or failures
+        /* v8 ignore next 4 */
         if (!requestId) {
             logger.error("Received Poe response without a valid requestId in context.", result, context);
             return;
@@ -253,7 +245,7 @@ export default function usePoeAi(
             logger.warn(`Received response for unknown or completed request ID: ${requestId}`, result);
             return;
         }
-        /* v8 ignore next 4 */ // Very difficult to trigger
+        /* v8 ignore next 4 */
         if (!isMounted.current) {
             logger.warn(`Component unmounted, discarding response for request ID: ${requestId}`);
             return;
@@ -265,27 +257,25 @@ export default function usePoeAi(
         const newState: RequestState = {
             ...currentState,
             status: result.status,
-            generating: result.status === 'incomplete', // Still generating only if status is 'incomplete'
-            // Update responses, preserving previous ones if the new result doesn't provide any (e.g., intermediate errors)
-            /* v8 ignore next 1 */ // The simulation does not currently support streaming so this is impossible to trigger in testing
+            generating: result.status === 'incomplete',
+            /* v8 ignore next 1 */
             responses: result.responses ?? currentState.responses,
-            error: null, // Assume success initially, clear previous errors
+            error: null,
         };
 
         if (result.status === "error") {
             const errorMsg = result.responses
-                    ?.map(msg => { // These generally should never happen, but if they do we handle them
-                        /* v8 ignore next */ // For the 'Bot' fallback
+                    ?.map(msg => {
+                        /* v8 ignore next */
                         const sender = msg.senderId || 'Bot';
-                        /* v8 ignore next */ // For the 'Unknown error' fallback
+                        /* v8 ignore next */
                         const statusText = msg.statusText || 'Unknown error';
-                        // The 'null' part of the ternary is hard to hit if msg.status is always 'error' here and we expect a statusText for errors.
-                        /* v8 ignore next */ // This ignores the `null` part of the ternary if msg.status is always 'error'
+                        /* v8 ignore next */
                         return msg.status === 'error' ? `[${sender} Error]: ${statusText}` : null;
                     })
                     .filter(Boolean)
                     .join("\n")
-                /* v8 ignore next */ // For the "An unknown error..." fallback
+                /* v8 ignore next */
                 || "An unknown error occurred during response generation.";
             newState.error = errorMsg;
             logger.error(`[ReqID: ${requestId}] Error status received:`, errorMsg);
@@ -300,15 +290,12 @@ export default function usePoeAi(
 
         activeRequests.current.set(requestId, {...requestEntry, state: newState});
 
-        // --- Invoke User Callback ---
         try {
             requestEntry.callback(newState);
         } catch (callbackError) {
             logger.error(`[ReqID: ${requestId}] Error executing request callback:`, callbackError);
         }
 
-        // --- Cleanup ---
-        // If the request has reached a terminal state (complete or error), remove it from the active map.
         if (newState.status === "complete" || newState.status === "error") {
             logger.debug(`[ReqID: ${requestId}] Request finished with status: ${newState.status}. Cleaning up entry.`);
             activeRequests.current.delete(requestId);
@@ -316,17 +303,12 @@ export default function usePoeAi(
 
     }, [logger]);
 
-    /**
-     * Effect to register the `handlePoeResponse` function with the Poe API when the hook mounts
-     * (and if not in simulation mode) and unregister it when the hook unmounts.
-     */
     useEffect(() => {
         if (globalSimulation || typeof window === 'undefined' || !window.Poe) {
             logger.warn(`Simulation mode (${globalSimulation}) or Poe API not available. Skipping handler registration.`);
             return;
         }
 
-        // Register the handler with the generated or provided name.
         logger.debug(`Registering global Poe handler: ${handlerName}`);
         const unregister = window.Poe.registerHandler(handlerName, handlePoeResponse);
 
@@ -342,8 +324,8 @@ export default function usePoeAi(
 
     const simulateResponse = useCallback((
         requestId: string,
-        _callback: RequestCallback, // callback is not directly used here, handlePoeResponse uses stored one
-        _initialState: RequestState, // initialState is not directly used here
+        _callback: RequestCallback,
+        _initialState: RequestState,
         simulatedResponseOverride?: Message[] | null,
     ) => {
         logger.debug(`[ReqID: ${requestId}] Simulating AI response...`);
@@ -351,29 +333,25 @@ export default function usePoeAi(
         const delay = hookOpts.current.simulationDelay;
         const errorChance = hookOpts.current.simulateErrorChance;
 
-        // Use setTimeout to simulate the asynchronous nature of an API call.
         setTimeout(() => {
-            /* v8 ignore next 5 */ // Defensive check, effectively impossible to trigger
+            /* v8 ignore next 5 */
             if (!isMounted.current) {
                 logger.warn(`[ReqID: ${requestId}] Component unmounted during simulation delay.`);
                 activeRequests.current.delete(requestId);
                 return;
             }
-            // Double-check if the request is still active (it might have been cancelled/cleaned up).
-            /* v8 ignore next 4 */ // Defensive check, effectively impossible to trigger
+            /* v8 ignore next 4 */
             if (!activeRequests.current.has(requestId)) {
                 logger.warn(`[ReqID: ${requestId}] Simulation timer fired but request no longer active.`);
                 return;
             }
 
-            // Determine if this simulation should result in an error.
-            const randomRoll = Math.random(); // Value between 0 and 1
+            const randomRoll = Math.random();
             const willSimulateError = errorChance > 0 && randomRoll <= errorChance;
             const logInfo = `(Error Chance: ${Math.round(errorChance * 100)}%, Rolled: ${Math.round(randomRoll * 100)}%)`;
 
             let simulatedResult: SendUserMessageResult;
 
-            // Create a simulated error result.
             if (willSimulateError) {
                 const errorMsg = `Simulated error occurred ${logInfo}`;
                 logger.warn(`[ReqID: ${requestId}] Simulating an error response:`, errorMsg);
@@ -383,7 +361,6 @@ export default function usePoeAi(
                     includeDefaultAttachment: false
                 });
             }
-            // Create a simulated success result.
             else {
                 logger.debug(`[ReqID: ${requestId}] Simulating a successful response ${logInfo}`);
                 const responseMessages = simulatedResponseOverride ?? hookOpts.current.simulationResponses;
@@ -393,29 +370,17 @@ export default function usePoeAi(
                 });
                 logger.debug(`[ReqID: ${requestId}] Simulated success response data:`, simulatedResult);
             }
-
-            // Process the simulated result using the same handler function used for real API responses.
-            // This ensures consistent state update logic for both real and simulated scenarios.
             handlePoeResponse(simulatedResult, {requestId});
         }, delay);
     }, [logger, handlePoeResponse]);
 
 
     // --- sendToAI Function (Returned to Consumer) ---
-
-    /**
-     * Initiates a new AI request to Poe (or simulates one).
-     * Tracks the request's state internally and provides updates via the provided callback.
-     *
-     * @param prompt - The text prompt to send to the AI bot. Must include bot mention (e.g., "@ChatGPT") if required by the bot.
-     * @param callback - A function that will be called with `RequestState` updates for this specific request.
-     * @param requestOptions - Optional settings specific to this request (e.g., streaming, attachments, simulation override).
-     */
-    const sendToAI = useCallback((
+    const sendToAI = useCallback(async ( // Make sendToAI async to use await with tryCatchAsync
         prompt: string,
         callback: RequestCallback,
         requestOptions?: RequestOptions
-    ): void => {
+    ): Promise<void> => { // Return Promise<void> because of async
         const requestId = generateRequestId();
         const {stream = false, openChat = false, attachments, simulatedResponseOverride} = requestOptions ?? {};
 
@@ -433,12 +398,14 @@ export default function usePoeAi(
         activeRequests.current.set(requestId, {state: initialState, callback});
 
         // Immediately invoke the callback with the initial "generating" state.
-        // This allows the UI to reflect that the request has started.
-        try {
-            callback(initialState);
-        } catch (callbackError) {
-            logger.error(`[ReqID: ${requestId}] Error executing initial request callback:`, callbackError);
+        // Use tryCatchSync for the initial callback invocation.
+        const [_, initialCallbackError] = tryCatchSync(() => callback(initialState));
+        if (initialCallbackError) {
+            logger.error(`[ReqID: ${requestId}] Error executing initial request callback:`, initialCallbackError);
+            // Optionally, you might want to stop further processing if the initial callback fails critically.
+            // For now, we'll log and continue, as the main operation hasn't started.
         }
+
 
         // --- Branch: Simulate or Call Real API ---
         if (globalSimulation) {
@@ -447,62 +414,73 @@ export default function usePoeAi(
         }
 
         // --- Call Actual Poe API ---
-        // Check if the Poe API is available on the window object.
         if (typeof window === 'undefined' || !window.Poe) {
             const errorMsg = `[ReqID: ${requestId}] usePoeAi Error: window.Poe is not available. Cannot send message.`;
             logger.error(errorMsg);
             const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
-            activeRequests.current.set(requestId, {state: errorState, callback});
 
-            tryCatchSync(() => callback(errorState)) // Ignore Error, already logged
-            // Clean up the failed request immediately.
-            activeRequests.current.delete(requestId);
+            // Update active request with error state before calling callback
+            if(activeRequests.current.has(requestId)){
+                activeRequests.current.set(requestId, {state: errorState, callback});
+            }
+
+            tryCatchSync(() => callback(errorState)); // Ignore Error from tryCatchSync, already logged
+            activeRequests.current.delete(requestId); // Clean up
             return;
         }
 
-        // Call the Poe API's sendUserMessage function.
-        window.Poe.sendUserMessage(prompt, {
-            handler: handlerName,
-            stream: stream,
-            openChat: openChat,
-            attachments: attachments,
-            handlerContext: {requestId}
-        })
-            .then((dispatchResult) => {
-                logger.debug(`[ReqID: ${requestId}] Poe.sendUserMessage dispatch result:`, dispatchResult);
-                if (!dispatchResult.success && activeRequests.current.has(requestId)) {
-                    const errorMsg = `[ReqID: ${requestId}] Poe message dispatch failed immediately (reason unknown).`;
-                    logger.error(errorMsg);
-                    const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
-                    const entry = activeRequests.current.get(requestId)!;
-                    activeRequests.current.set(requestId, {...entry, state: errorState});
-                    tryCatchSync(() => entry.callback(errorState)) // Ignore Error, already logged
-                    activeRequests.current.delete(requestId);
-                }
+        // Use tryCatchAsync for the Poe API call
+        const [dispatchResult, dispatchError] = await tryCatchAsync< { success: boolean }, Error | PoeEmbedAPIError >(
+            () => window.Poe.sendUserMessage(prompt, {
+                handler: handlerName,
+                stream: stream,
+                openChat: openChat,
+                attachments: attachments,
+                handlerContext: {requestId}
             })
-            .catch(err => {
-                let errorMsg = `[ReqID: ${requestId}] Error during message dispatch.`;
-                /* v8 ignore next 2 */ // This can not be tested unless we mock the Poe API
-                if (err instanceof PoeEmbedAPIError) {
-                    errorMsg = `[ReqID: ${requestId}] Poe API Error (${err.errorType}) during dispatch: ${err.message}`;
-                } else if (err instanceof Error) {
-                    errorMsg = `[ReqID: ${requestId}] Error during message dispatch: ${err.message}`;
-                }
-                    /* v8 ignore next 3 */ // This should never happen, but if it does we handle it
-                else {
-                    errorMsg = `[ReqID: ${requestId}] An unknown error occurred during message dispatch: ${String(err)}`;
-                }
-                logger.error(errorMsg, err);
+        );
 
-                // If the request is still tracked, update its state to error and notify the callback.
-                if (activeRequests.current.has(requestId)) {
-                    const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
-                    const entry = activeRequests.current.get(requestId)!;
-                    activeRequests.current.set(requestId, {...entry, state: errorState});
-                    tryCatchSync(() => entry.callback(errorState)) // Ignore Error, already logged
-                    activeRequests.current.delete(requestId);
-                }
-            });
+        if (dispatchError) {
+            let errorMsg = `[ReqID: ${requestId}] Error during message dispatch.`;
+            /* v8 ignore next 2 */ // This can not be tested unless we mock the Poe API
+            if (dispatchError instanceof PoeEmbedAPIError) {
+                errorMsg = `[ReqID: ${requestId}] Poe API Error (${dispatchError.errorType}) during dispatch: ${dispatchError.message}`;
+            } else if (dispatchError instanceof Error) { // Should always be true if not PoeEmbedAPIError due to tryCatchAsync
+                errorMsg = `[ReqID: ${requestId}] Error during message dispatch: ${dispatchError.message}`;
+            }
+                /* v8 ignore next 3 */ // Fallback, though tryCatchAsync should ensure dispatchError is an Error instance
+            else {
+                errorMsg = `[ReqID: ${requestId}] An unknown error occurred during message dispatch: ${String(dispatchError)}`;
+            }
+            logger.error(errorMsg, dispatchError);
+
+            if (activeRequests.current.has(requestId)) {
+                const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
+                const entry = activeRequests.current.get(requestId)!; // We know it exists
+                activeRequests.current.set(requestId, {...entry, state: errorState});
+                tryCatchSync(() => entry.callback(errorState));
+                activeRequests.current.delete(requestId);
+            }
+            return; // Stop further processing on dispatch error
+        }
+
+        // If dispatchResult is null, it means tryCatchAsync caught an error, handled above.
+        // This check is more of a type guard now.
+        if (dispatchResult) {
+            logger.debug(`[ReqID: ${requestId}] Poe.sendUserMessage dispatch result:`, dispatchResult);
+            if (!dispatchResult.success && activeRequests.current.has(requestId)) {
+                const errorMsg = `[ReqID: ${requestId}] Poe message dispatch failed immediately (Poe API reported success:false).`;
+                logger.error(errorMsg);
+                const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
+                const entry = activeRequests.current.get(requestId)!;
+                activeRequests.current.set(requestId, {...entry, state: errorState});
+                tryCatchSync(() => entry.callback(errorState));
+                activeRequests.current.delete(requestId);
+            }
+            // If dispatchResult.success is true, we don't do anything here.
+            // The actual AI response will come through the handlePoeResponse callback.
+        }
+
     }, [logger, globalSimulation, handlerName, simulateResponse]);
 
     return [sendToAI];
