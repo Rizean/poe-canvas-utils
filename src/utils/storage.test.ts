@@ -1,5 +1,5 @@
 // src/utils/storage.test.ts
-import { saveDataToFile, loadDataFromFile, VersionedData, LoadOptions } from './storage';
+import {loadDataFromFile, LoadOptions, saveDataToFile, VersionedData} from './storage';
 
 interface MyTestDataV1 extends VersionedData {
     version: 1;
@@ -41,7 +41,7 @@ async function simulateFileSelection(fileContent: string | object | null, fileNa
         contentString = JSON.stringify(fileContent);
     }
 
-    const file = contentString !== undefined ? new File([contentString], fileName, { type: 'application/json' }) : null;
+    const file = contentString !== undefined ? new File([contentString], fileName, {type: 'application/json'}) : null;
 
     // The FileReader's readAsText will be called. We then simulate its async completion.
     // The actual triggering of onload/onerror will happen from the test.
@@ -86,7 +86,7 @@ describe('Storage Utility (File Based)', () => {
                 return {
                     type: '',
                     accept: '',
-                    style: { display: '' },
+                    style: {display: ''},
                     click: mockFileInputClick,
                     set onchange(callback: any) {
                         mockFileInputChangeCallback = callback;
@@ -119,7 +119,7 @@ describe('Storage Utility (File Based)', () => {
             _triggerOnload: (content) => {
                 mockFileReader.result = content;
                 if (mockFileReader.onload) {
-                    mockFileReader.onload({ target: { result: mockFileReader.result } } as Partial<ProgressEvent<FileReader>>);
+                    mockFileReader.onload({target: {result: mockFileReader.result}} as Partial<ProgressEvent<FileReader>>);
                 }
             },
             _triggerOnerror: () => {
@@ -136,7 +136,7 @@ describe('Storage Utility (File Based)', () => {
     // ... saveDataToFile tests remain the same ...
     describe('saveDataToFile', () => {
         it('should trigger download for valid data', () => {
-            const data: MyTestDataV1 = { version: 1, name: 'Test User' };
+            const data: MyTestDataV1 = {version: 1, name: 'Test User'};
             const filename = 'user-data.json';
             const [success, error] = saveDataToFile(filename, data);
 
@@ -154,7 +154,7 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return an error if data has no version property', () => {
-            const data = { name: 'No Version' } as any;
+            const data = {name: 'No Version'} as any;
             const [success, error] = saveDataToFile('no-version.json', data);
 
             expect(success).toBeNull();
@@ -164,7 +164,7 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return an error if JSON.stringify fails', () => {
-            const circularData: any = { version: 1, name: 'Circular' };
+            const circularData: any = {version: 1, name: 'Circular'};
             circularData.self = circularData;
             const [success, error] = saveDataToFile('circular.json', circularData);
 
@@ -178,8 +178,8 @@ describe('Storage Utility (File Based)', () => {
 
     describe('loadDataFromFile', () => {
         it('should load and parse valid JSON file with matching version', async () => {
-            const fileData: MyTestDataV1 = { version: 1, name: 'Loaded User' };
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const fileData: MyTestDataV1 = {version: 1, name: 'Loaded User'};
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             expect(mockFileInputClick).toHaveBeenCalledTimes(1); // Input is clicked
@@ -195,7 +195,7 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return [null, null] if user cancels file dialog (no file selected)', async () => {
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             expect(mockFileInputClick).toHaveBeenCalledTimes(1);
 
@@ -210,7 +210,7 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should return error if file content is not valid JSON', async () => {
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection("not json");
             mockFileReader._triggerOnload("not json");
@@ -223,7 +223,7 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should cover if fileContent is not a string (e.g. ArrayBuffer)', async () => {
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection("valid json but will be overridden"); // File selected
             mockFileReader._triggerOnload(new ArrayBuffer(8)); // FileReader returns ArrayBuffer
@@ -235,7 +235,7 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return error if parsed data is not an object', async () => {
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection("123"); // Content is a valid JSON number
             mockFileReader._triggerOnload("123");
@@ -247,8 +247,8 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should return error if parsed data has no version property', async () => {
-            const fileContent = { name: 'No Version Prop' };
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const fileContent = {name: 'No Version Prop'};
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(fileContent);
             mockFileReader._triggerOnload(JSON.stringify(fileContent));
@@ -260,8 +260,8 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return error if parsed data version is not a number', async () => {
-            const fileContent = { version: '1', name: 'String version' };
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const fileContent = {version: '1', name: 'String version'};
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(fileContent);
             mockFileReader._triggerOnload(JSON.stringify(fileContent));
@@ -273,11 +273,11 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should migrate data if loaded version is older', async () => {
-            const oldData: MyTestDataV1 = { version: 1, name: 'Old User for File' };
+            const oldData: MyTestDataV1 = {version: 1, name: 'Old User for File'};
             const migrateFn = jest.fn((loadedData: any): MyTestDataV2 => {
-                return { version: 2, fullName: (loadedData as MyTestDataV1).name, age: 33 };
+                return {version: 2, fullName: (loadedData as MyTestDataV1).name, age: 33};
             });
-            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
+            const options: LoadOptions<MyTestDataV2> = {currentVersion: 2, migrate: migrateFn};
 
             const loadPromise = loadDataFromFile<MyTestDataV2>(options);
             await simulateFileSelection(oldData);
@@ -288,12 +288,12 @@ describe('Storage Utility (File Based)', () => {
 
             expect(error).toBeNull();
             expect(migrateFn).toHaveBeenCalledWith(oldData, 1);
-            expect(data).toEqual({ version: 2, fullName: 'Old User for File', age: 33 });
+            expect(data).toEqual({version: 2, fullName: 'Old User for File', age: 33});
         });
 
         it('should return error if migration is needed but no migrate function provided', async () => {
-            const oldData: MyTestDataV1 = { version: 1, name: 'Needs Migration' };
-            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2 /* no migrate */ };
+            const oldData: MyTestDataV1 = {version: 1, name: 'Needs Migration'};
+            const options: LoadOptions<MyTestDataV2> = {currentVersion: 2 /* no migrate */};
             const loadPromise = loadDataFromFile<MyTestDataV2>(options);
             await simulateFileSelection(oldData);
             mockFileReader._triggerOnload(JSON.stringify(oldData));
@@ -304,9 +304,10 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return error if migration function fails to update to currentVersion', async () => {
-            const oldData: MyTestDataV1 = { version: 1, name: 'Bad Migration' };
-            const migrateFn = jest.fn((): MyTestDataV1 => ({ version: 1, name: 'Still Old' })); // Wrong version
-            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
+            const oldData: MyTestDataV1 = {version: 1, name: 'Bad Migration'};
+            const migrateFn = jest.fn((): MyTestDataV1 => ({version: 1, name: 'Still Old'})); // Wrong version
+            // @ts-expect-error we expect - TS2322: Type Mock<MyTestDataV1, [], any> is not assignable to type MyTestDataV2 | Promise<MyTestDataV2> as this is a bad load
+            const options: LoadOptions<MyTestDataV2> = {currentVersion: 2, migrate: migrateFn};
             const loadPromise = loadDataFromFile<MyTestDataV2>(options);
             await simulateFileSelection(oldData);
             mockFileReader._triggerOnload(JSON.stringify(oldData));
@@ -318,9 +319,11 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should return error if migration function throws', async () => {
-            const oldData: MyTestDataV1 = { version: 1, name: 'Error Migration' };
-            const migrateFn = jest.fn(() => { throw new Error("Kaboom migration"); });
-            const options: LoadOptions<MyTestDataV2> = { currentVersion: 2, migrate: migrateFn };
+            const oldData: MyTestDataV1 = {version: 1, name: 'Error Migration'};
+            const migrateFn = jest.fn(() => {
+                throw new Error("Kaboom migration");
+            });
+            const options: LoadOptions<MyTestDataV2> = {currentVersion: 2, migrate: migrateFn};
             const loadPromise = loadDataFromFile<MyTestDataV2>(options);
             await simulateFileSelection(oldData);
             mockFileReader._triggerOnload(JSON.stringify(oldData));
@@ -332,8 +335,8 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should return error if loaded data version is newer', async () => {
-            const newerData: MyTestDataV2 = { version: 2, fullName: 'Future File User' };
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const newerData: MyTestDataV2 = {version: 2, fullName: 'Future File User'};
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(newerData);
             mockFileReader._triggerOnload(JSON.stringify(newerData));
@@ -345,9 +348,9 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should validate data after loading (and migration if any)', async () => {
-            const fileData: MyTestDataV1 = { version: 1, name: 'Validate Me' };
+            const fileData: MyTestDataV1 = {version: 1, name: 'Validate Me'};
             const validateFn = jest.fn((d: MyTestDataV1) => d.name === 'Validate Me');
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1, validate: validateFn};
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(fileData);
@@ -362,9 +365,9 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return error if validation fails', async () => {
-            const fileData: MyTestDataV1 = { version: 1, name: 'Will Fail Validation' };
+            const fileData: MyTestDataV1 = {version: 1, name: 'Will Fail Validation'};
             const validateFn = jest.fn(() => false);
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1, validate: validateFn};
 
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(fileData);
@@ -377,9 +380,11 @@ describe('Storage Utility (File Based)', () => {
         });
 
         it('should return error if validation function throws', async () => {
-            const fileData: MyTestDataV1 = { version: 1, name: 'Validate Me Error' };
-            const validateFn = jest.fn(() => { throw new Error("Kaboom validation"); });
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1, validate: validateFn };
+            const fileData: MyTestDataV1 = {version: 1, name: 'Validate Me Error'};
+            const validateFn = jest.fn(() => {
+                throw new Error("Kaboom validation");
+            });
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1, validate: validateFn};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
             await simulateFileSelection(fileData);
             mockFileReader._triggerOnload(JSON.stringify(fileData));
@@ -391,12 +396,11 @@ describe('Storage Utility (File Based)', () => {
 
 
         it('should handle FileReader errors', async () => {
-            const options: LoadOptions<MyTestDataV1> = { currentVersion: 1 };
+            const options: LoadOptions<MyTestDataV1> = {currentVersion: 1};
             const loadPromise = loadDataFromFile<MyTestDataV1>(options);
 
             await simulateFileSelection("any content to trigger read");
             mockFileReader._triggerOnerror(); // Manually trigger onerror
-
 
             const [data, error] = await loadPromise;
             expect(data).toBeNull();
