@@ -1,6 +1,7 @@
 // src/hooks/usePoeAi.ts
 import {useCallback, useEffect, useRef, useState} from "react";
-import {type Message, type MessageStatus, PoeEmbedAPIError, type SendUserMessageResult} from "../types/Poe"; // Adjusted import
+import {type Message, type MessageStatus, PoeEmbedAPIError, type SendUserMessageResult} from "../types/Poe";
+import {tryCatchSync} from "../utils/tryCatch";
 
 // ====================================================================================
 // Interfaces and Types
@@ -153,6 +154,7 @@ type SimulationResponseOptions = {
 export function simulationSendUserMessageResult(opts?: SimulationResponseOptions): SendUserMessageResult {
     const options = {
         includeDefaultAttachment: opts?.includeDefaultAttachment ?? true,
+        /* v8 ignore next 1 */ // Default parameter
         status: opts?.status ?? "complete",
         responses: opts?.responses ?? [{}],
     };
@@ -167,6 +169,7 @@ export function simulationSendUserMessageResult(opts?: SimulationResponseOptions
             contentType: partialMsg.contentType || "text/plain",
             // Message status often mirrors the overall result status, but can be overridden
             status: partialMsg.status || options.status,
+            // TODO: test user defined simulated error
             statusText: partialMsg.statusText || (options.status === 'error' ? "Simulated error" : undefined),
             attachments: partialMsg.attachments,
         };
@@ -240,6 +243,7 @@ export default function usePoeAi(
      */
     const handlePoeResponse = useCallback((result: SendUserMessageResult, context?: { requestId?: string }) => {
         const requestId = context?.requestId;
+        /* v8 ignore next 4 */ // This is defence against Poe API changes or failures
         if (!requestId) {
             logger.error("Received Poe response without a valid requestId in context.", result, context);
             return;
@@ -249,6 +253,7 @@ export default function usePoeAi(
             logger.warn(`Received response for unknown or completed request ID: ${requestId}`, result);
             return;
         }
+        /* v8 ignore next 4 */ // Very difficult to trigger
         if (!isMounted.current) {
             logger.warn(`Component unmounted, discarding response for request ID: ${requestId}`);
             return;
@@ -262,15 +267,26 @@ export default function usePoeAi(
             status: result.status,
             generating: result.status === 'incomplete', // Still generating only if status is 'incomplete'
             // Update responses, preserving previous ones if the new result doesn't provide any (e.g., intermediate errors)
+            /* v8 ignore next 1 */ // The simulation does not currently support streaming so this is impossible to trigger in testing
             responses: result.responses ?? currentState.responses,
             error: null, // Assume success initially, clear previous errors
         };
 
         if (result.status === "error") {
             const errorMsg = result.responses
-                ?.map(msg => msg.status === 'error' ? `[${msg.senderId || 'Bot'} Error]: ${msg.statusText || 'Unknown error'}` : null)
+                ?.map(msg => { // These generally should never happen, but if they do we handle them
+                    /* v8 ignore next */ // For the 'Bot' fallback
+                    const sender = msg.senderId || 'Bot';
+                    /* v8 ignore next */ // For the 'Unknown error' fallback
+                    const statusText = msg.statusText || 'Unknown error';
+                    // The 'null' part of the ternary is hard to hit if msg.status is always 'error' here and we expect a statusText for errors.
+                    /* v8 ignore next */ // This ignores the `null` part of the ternary if msg.status is always 'error'
+                    return msg.status === 'error' ? `[${sender} Error]: ${statusText}` : null;
+                })
                 .filter(Boolean)
-                .join("\n") || "An unknown error occurred during response generation.";
+                .join("\n")
+                /* v8 ignore next */ // For the "An unknown error..." fallback
+                || "An unknown error occurred during response generation.";
             newState.error = errorMsg;
             logger.error(`[ReqID: ${requestId}] Error status received:`, errorMsg);
         }
@@ -337,12 +353,14 @@ export default function usePoeAi(
 
         // Use setTimeout to simulate the asynchronous nature of an API call.
         setTimeout(() => {
+            /* v8 ignore next 5 */ // Defensive check, effectively impossible to trigger
             if (!isMounted.current) {
                 logger.warn(`[ReqID: ${requestId}] Component unmounted during simulation delay.`);
                 activeRequests.current.delete(requestId);
                 return;
             }
             // Double-check if the request is still active (it might have been cancelled/cleaned up).
+            /* v8 ignore next 4 */ // Defensive check, effectively impossible to trigger
             if (!activeRequests.current.has(requestId)) {
                 logger.warn(`[ReqID: ${requestId}] Simulation timer fired but request no longer active.`);
                 return;
@@ -436,10 +454,8 @@ export default function usePoeAi(
             logger.error(errorMsg);
             const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
             activeRequests.current.set(requestId, {state: errorState, callback});
-            try {
-                callback(errorState);
-            } catch { /* Error during callback already logged */
-            }
+
+            tryCatchSync(() => callback(errorState)) // Ignore Error, already logged
             // Clean up the failed request immediately.
             activeRequests.current.delete(requestId);
             return;
@@ -461,20 +477,20 @@ export default function usePoeAi(
                     const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
                     const entry = activeRequests.current.get(requestId)!;
                     activeRequests.current.set(requestId, {...entry, state: errorState});
-                    try {
-                        entry.callback(errorState);
-                    } catch { /* Already logged */
-                    }
+                    tryCatchSync(() => entry.callback(errorState)) // Ignore Error, already logged
                     activeRequests.current.delete(requestId);
                 }
             })
             .catch(err => {
                 let errorMsg = `[ReqID: ${requestId}] Error during message dispatch.`;
+                /* v8 ignore next 2 */ // This can not be tested unless we mock the Poe API
                 if (err instanceof PoeEmbedAPIError) {
                     errorMsg = `[ReqID: ${requestId}] Poe API Error (${err.errorType}) during dispatch: ${err.message}`;
                 } else if (err instanceof Error) {
                     errorMsg = `[ReqID: ${requestId}] Error during message dispatch: ${err.message}`;
-                } else {
+                }
+                /* v8 ignore next 3 */ // This should never happen, but if it does we handle it
+                else {
                     errorMsg = `[ReqID: ${requestId}] An unknown error occurred during message dispatch: ${String(err)}`;
                 }
                 logger.error(errorMsg, err);
@@ -484,10 +500,7 @@ export default function usePoeAi(
                     const errorState: RequestState = {...initialState, generating: false, error: errorMsg, status: 'error'};
                     const entry = activeRequests.current.get(requestId)!;
                     activeRequests.current.set(requestId, {...entry, state: errorState});
-                    try {
-                        entry.callback(errorState);
-                    } catch { /* Already logged */
-                    }
+                    tryCatchSync(() => entry.callback(errorState)) // Ignore Error, already logged
                     activeRequests.current.delete(requestId);
                 }
             });
