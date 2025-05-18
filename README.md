@@ -135,7 +135,260 @@ function MyPoeChatComponent() {
 export default MyPoeChatComponent;
 ```
 
-### 2. `useLogger` - Client-Side Logging
+### 2. `usePoeAiTextGenerator` - Interacting with Poe AI Text Generator Models
+
+This hook is a specialized version of `usePoeAi` tailored for text generation use cases. It always streams responses and simplifies handling of text content, with optional parsing.
+
+```tsx
+// MyTextGeneratorComponent.tsx
+import React, { useState, useCallback } from 'react';
+import {
+    usePoeAiTextGenerator,
+    type TextRequestState,
+    type TextRequestCallback,
+    type Result // For custom parser
+} from '@rizean/poe-canvas-utils';
+
+// Optional: Define a type for your parsed data if using a parser
+interface MyParsedData {
+  summary: string;
+  keywords: string[];
+}
+
+// Optional: Define a custom parser function
+const myCustomParser = (text: string): Result<MyParsedData, Error> => {
+  try {
+    // This is a very basic parser example.
+    // In a real scenario, you might look for specific structures or use more robust parsing.
+    if (text.length < 10) { // Simulate condition where parsing isn't possible yet or fails
+        // For incomplete streams, you might return [null, null] or a specific error
+        // if you expect more data before parsing is valid.
+        // Or, if it's a definitive parse error:
+        // return [null, new Error("Text too short to parse meaningful data.")];
+    }
+    // Let's assume the AI responds with "Summary: [text] Keywords: [kw1, kw2]"
+    const summaryMatch = text.match(/Summary: (.*?)( Keywords:|$)/s);
+    const keywordsMatch = text.match(/Keywords: (.*)/s);
+    const summary = summaryMatch ? summaryMatch[1].trim() : "No summary found.";
+    const keywords = keywordsMatch ? keywordsMatch[1].split(',').map(kw => kw.trim()) : [];
+
+    if (!summaryMatch && !keywordsMatch && text.length > 0) {
+        // If no specific structure is found, but there's text,
+        // you might decide it's not an error, but just not parseable into MyParsedData.
+        // Depending on strictness, you could return an error or a default/empty structure.
+    }
+
+    return [{ summary, keywords }, null];
+  } catch (e) {
+    return [null, e instanceof Error ? e : new Error('Unknown parsing error')];
+  }
+};
+
+function MyTextGeneratorComponent() {
+  const [sendTextPrompt] = usePoeAiTextGenerator<MyParsedData>({
+    // simulation: true, // Enable for development
+    // logger: console,
+  });
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedText, setGeneratedText] = useState('');
+  const [parsedData, setParsedData] = useState<MyParsedData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleGenerateText = useCallback((prompt: string) => {
+    setIsGenerating(true);
+    setGeneratedText('');
+    setParsedData(null);
+    setErrorMessage(null);
+
+    const callback: TextRequestCallback<MyParsedData> = (state) => {
+      // console.log('Text Generator State:', state);
+      setGeneratedText(state.text); // Always update with the latest raw text stream
+
+      if (state.error) {
+        setIsGenerating(false);
+        setErrorMessage(state.error);
+      } else if (state.parsed) {
+        setParsedData(state.parsed);
+        // You might set isGenerating to false here if parsing indicates completion,
+        // or wait for the generating flag.
+      }
+
+      if (!state.generating && !state.error) {
+        setIsGenerating(false);
+        // Final state, even if parsing didn't yield data or wasn't used.
+      }
+    };
+
+    // Example: Ensure window.Poe is available or simulation is enabled.
+    sendTextPrompt(
+      `@Gemini-2.5-Pro-Exp Summarize this and list keywords: ${prompt}`,
+      callback,
+      {
+        parser: myCustomParser, // Provide the parser
+        // simulatedResponseOverride: [{ messageId: 'sim1', content: 'Summary: Test. Keywords: A, B', ...}],
+      }
+    );
+  }, [sendTextPrompt]);
+
+  // Basic form for input
+  const [inputValue, setInputValue] = useState('');
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      handleGenerateText(inputValue.trim());
+    }
+  };
+
+  return (
+    <div>
+      <form onSubmit={handleFormSubmit}>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Enter text to process..."
+          disabled={isGenerating}
+        />
+        <button type="submit" disabled={isGenerating}>
+          {isGenerating ? 'Generating...' : 'Generate Text'}
+        </button>
+      </form>
+
+      {errorMessage && <p style={{ color: 'red' }}>Error: {errorMessage}</p>}
+
+      <h4>Live Text Stream:</h4>
+      <pre style={{ whiteSpace: 'pre-wrap', border: '1px solid #ccc', padding: '10px' }}>
+        {generatedText || "Waiting for generation..."}
+      </pre>
+
+      {parsedData && (
+        <div>
+          <h4>Parsed Data:</h4>
+          <p><strong>Summary:</strong> {parsedData.summary}</p>
+          <p><strong>Keywords:</strong> {parsedData.keywords.join(', ')}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MyTextGeneratorComponent;
+```
+
+### 3. `usePoeAiMediaGenerator` - Interacting with Poe AI Media Generator Models
+
+This hook is tailored for interactions that primarily result in media attachments (e.g., image generation bots). It defaults to non-streaming.
+
+```tsx
+// MyMediaGeneratorComponent.tsx
+import React, { useState, useCallback } from 'react';
+import {
+    usePoeAiMediaGenerator,
+    type MediaRequestState,
+    type MediaRequestCallback,
+    type PoeMessageAttachment // Type for received attachments
+} from '@rizean/poe-canvas-utils';
+
+function MyMediaGeneratorComponent() {
+  const [sendMediaPrompt] = usePoeAiMediaGenerator({
+    // simulation: true,
+    // logger: console,
+  });
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [attachments, setAttachments] = useState<PoeMessageAttachment[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [inputFiles, setInputFiles] = useState<File[]>([]); // For sending attachments
+
+  const handleGenerateMedia = useCallback((prompt: string) => {
+    setIsGenerating(true);
+    setAttachments([]);
+    setErrorMessage(null);
+
+    const callback: MediaRequestCallback = (state) => {
+      // console.log('Media Generator State:', state);
+      setIsGenerating(state.generating); // Reflect generating state
+
+      if (state.error) {
+        setErrorMessage(state.error);
+      } else if (state.mediaAttachments.length > 0) {
+        setAttachments(state.mediaAttachments);
+      }
+      // When state.generating becomes false and no error, generation is complete.
+    };
+
+    sendMediaPrompt(
+      `@ImageCreatorBot Create an image of: ${prompt}`,
+      callback,
+      {
+        attachments: inputFiles, // Send user-selected files with the prompt
+        // openChat: true, // Optional
+        // simulatedResponseOverride: [{ messageId: 'sim1', attachments: [{ attachmentId: 'a1', name: 'sim.png', url: '...', mimeType: 'image/png' }], ...}]
+      }
+    );
+  }, [sendMediaPrompt, inputFiles]);
+
+  const [inputValue, setInputValue] = useState('');
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      handleGenerateMedia(inputValue.trim());
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setInputFiles(Array.from(event.target.files));
+    }
+  };
+
+  return (
+    <div>
+      <form onSubmit={handleFormSubmit}>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Enter media generation prompt..."
+          disabled={isGenerating}
+        />
+        <br />
+        <label>
+          Optional files to send with prompt:
+          <input type="file" multiple onChange={handleFileChange} disabled={isGenerating} />
+        </label>
+        <br />
+        <button type="submit" disabled={isGenerating}>
+          {isGenerating ? 'Generating Media...' : 'Generate Media'}
+        </button>
+      </form>
+
+      {errorMessage && <p style={{ color: 'red' }}>Error: {errorMessage}</p>}
+
+      {attachments.length > 0 && (
+        <div>
+          <h4>Generated Media:</h4>
+          <ul>
+            {attachments.map(att => (
+              <li key={att.attachmentId}>
+                <a href={att.url} target="_blank" rel="noopener noreferrer">{att.name}</a>
+                ({att.mimeType})
+                {att.mimeType.startsWith('image/') && <img src={att.url} alt={att.name} style={{maxWidth: '200px', display: 'block'}} />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MyMediaGeneratorComponent;
+
+```
+
+### 4. `useLogger` - Client-Side Logging
 
 Useful for debugging your canvas app. Logs are stored in memory.
 
@@ -184,7 +437,7 @@ function MyLoggerDemoComponent() {
 export default MyLoggerDemoComponent;
 ```
 
-### 3. `tryCatchSync` and `tryCatchAsync` - Functional Error Handling
+### 5. `tryCatchSync` and `tryCatchAsync` - Functional Error Handling
 
 Wrap functions to handle errors without traditional try-catch blocks in your main logic.
 
@@ -229,7 +482,7 @@ async function runAsyncExample() {
 runAsyncExample();
 ```
 
-### 4. `applyGeminiThinkingFilter` - Cleaning AI Output
+### 6. `applyGeminiThinkingFilter` - Cleaning AI Output
 
 Removes "Thinking..." blocks from text generated by Gemini models.
 
@@ -254,7 +507,7 @@ console.log("Cleaned Output:\n", cleanedOutput);
 // (Leading/trailing newlines might vary based on exact input)
 ```
 
-### 5. `saveDataToFile` and `loadDataFromFile` - Data Persistence
+### 7. `saveDataToFile` and `loadDataFromFile` - Data Persistence
 
 Allows users to download their application state as a JSON file and upload it later. This is crucial for Poe Canvas Apps which lack traditional browser storage.
 
@@ -372,6 +625,123 @@ function MyDataPersistenceComponent() {
 export default MyDataPersistenceComponent;
 ```
 
+### 8. `complexResponseParser` - Parsing Complex AI Responses
+
+A utility function to parse structured AI responses that might contain a main textual part enclosed in configurable tags and an optional JSON data block.
+
+```tsx
+// complexParserExample.ts
+import { complexResponseParser, type ParsedComplexAiResponse, type ComplexParserOptions } from '@rizean/poe-canvas-utils';
+
+const exampleAiResponseDefaultTags = `
+Some initial chatter from the AI.
+*Thinking...*
+> Okay, planning to respond.
+<response>
+This is the primary textual answer.
+It can span multiple lines.
+</response>
+Follow-up text.
+\`\`\`json
+{
+  "id": 123,
+  "status": "completed",
+  "details": {
+    "itemsProcessed": 5,
+    "warnings": ["Low accuracy on item 3"]
+  }
+}
+\`\`\`
+Final remarks.
+`;
+
+const exampleAiResponseCustomTags = `
+AI is starting...
+[CHAT_START]
+Hello! This is the chat content.
+[CHAT_END]
+\`\`\`json
+{"user": "guest", "session": "xyz789"}
+\`\`\`
+`;
+
+const exampleAiResponseNoJson = `
+<response>
+Just a simple text response.
+</response>
+`;
+
+const exampleAiResponseMalformedJson = `
+<response>
+Text part is okay.
+</response>
+\`\`\`json
+{ "data": "value", "invalid: json }
+\`\`\`
+`;
+
+// 1. Using default tags (<response>, </response>)
+const [parsedDefault, errorDefault] = complexResponseParser(exampleAiResponseDefaultTags);
+
+if (errorDefault) {
+  console.error("Default Parser Error:", errorDefault.message);
+} else if (parsedDefault) {
+  console.log("Parsed with Default Tags:");
+  console.log("  Response:", parsedDefault.response); // "This is the primary textual answer.\nIt can span multiple lines."
+  console.log("  Data:", parsedDefault.data);
+  // Data: { id: 123, status: "completed", details: { itemsProcessed: 5, warnings: ["Low accuracy on item 3"] } }
+}
+
+// 2. Using custom tags
+const customOptions: ComplexParserOptions = {
+  responseStartTag: "[CHAT_START]",
+  responseEndTag: "[CHAT_END]"
+};
+const [parsedCustom, errorCustom] = complexResponseParser(exampleAiResponseCustomTags, customOptions);
+
+if (errorCustom) {
+  console.error("Custom Parser Error:", errorCustom.message);
+} else if (parsedCustom) {
+  console.log("\nParsed with Custom Tags:");
+  console.log("  Response:", parsedCustom.response); // "Hello! This is the chat content."
+  console.log("  Data:", parsedCustom.data); // Data: { user: "guest", session: "xyz789" }
+}
+
+// 3. Response with no JSON
+const [parsedNoJson, errorNoJson] = complexResponseParser(exampleAiResponseNoJson);
+if (parsedNoJson) {
+  console.log("\nParsed with No JSON:");
+  console.log("  Response:", parsedNoJson.response); // "Just a simple text response."
+  console.log("  Data exists:", 'data' in parsedNoJson); // false
+}
+
+// 4. Response with malformed JSON
+const [parsedMalformed, errorMalformed] = complexResponseParser(exampleAiResponseMalformedJson);
+if (errorMalformed) {
+  console.error("\nMalformed JSON Error:", errorMalformed.message); // Will show JSON parsing error
+}
+
+// This parser can be used with usePoeAiTextGenerator:
+//
+// import { usePoeAiTextGenerator } from '@rizean/poe-canvas-utils';
+// import { complexResponseParser, type ParsedComplexAiResponse } from '@rizean/poe-canvas-utils';
+//
+// const [sendPrompt] = usePoeAiTextGenerator<ParsedComplexAiResponse>();
+//
+// sendPrompt("query", (state) => {
+//   if (state.parsed) {
+//     // state.parsed.response
+//     // state.parsed.data
+//   }
+// }, { parser: complexResponseParser });
+//
+// // To use custom tags with the text generator:
+// sendPrompt("query", (state) => { /* ... */ }, {
+//   parser: (text) => complexResponseParser(text, { responseStartTag: "[S]", responseEndTag: "[E]" })
+// });
+
+```
+
 ## API Reference
 
 ### `usePoeAi(options?: UseAiOptions)`
@@ -387,6 +757,44 @@ export default MyDataPersistenceComponent;
 -   **`RequestCallback`**: `(state: RequestState) => void`
 -   **`RequestState`**: `{ requestId, generating, error, responses, status }`
 -   **`RequestOptions`**: `{ stream?, openChat?, simulatedResponseOverride?, attachments? }`
+
+### `usePoeAiTextGenerator<T = undefined>(options?: UseAiTextOptions)`
+
+-   **Returns**: `[(prompt: string, callback: TextRequestCallback<T>, requestOptions?: TextRequestOptions<T>) => Promise<void>]`
+    -   A tuple containing a single function (typically named `sendTextMessage` or `sendTextPrompt`) to initiate text generation requests.
+-   **`UseAiTextOptions`**: Extends `PoeUseAiOptions` (the options for the base `usePoeAi` hook). Allows configuring simulation, logger, etc., specifically for this text generator instance.
+-   **`TextRequestCallback<T>`**: `(state: TextRequestState<T>) => void`
+    -   A callback function invoked with state updates during the text generation lifecycle. `T` is the type of the `parsed` data if a parser is used.
+-   **`TextRequestState<T>`**:
+    -   `requestId: string`: Unique ID for the request.
+    -   `generating: boolean`: True if the AI is still generating text.
+    -   `error: string | null`: An error message if an error occurred (from AI or parser).
+    -   `text: string`: The raw (or partially streamed) text content from the AI.
+    -   `parsed?: T`: The output from the provided `parser` function, if any. `T` is the type of the parsed data.
+    -   `rawResponse?: PoeAiRequestState | null`: The raw state object from the underlying `usePoeAi` hook, for debugging or advanced use.
+-   **`TextRequestOptions<T>`**:
+    -   `simulatedResponseOverride?: PoeMessage[] | null`: Specific simulated messages for this request, overriding global simulation settings.
+    -   `parser?: (text: string) => Result<T, Error>`: An optional function to parse the AI's `text` response. It should handle potentially incomplete text (during streaming) and return a `Result` tuple (`[parsedData, null]` on success, or `[null, error]` on failure).
+
+### `usePoeAiMediaGenerator(options?: UseAiMediaOptions)`
+
+-   **Returns**: `[(prompt: string, callback: MediaRequestCallback, requestOptions?: MediaRequestOptions) => Promise<void>]`
+    -   A tuple containing a single function (typically named `sendMediaMessage` or `sendMediaPrompt`) to initiate media generation requests.
+-   **`UseAiMediaOptions`**: Extends `PoeUseAiOptions`. Allows configuring simulation, logger, etc., for this media generator instance.
+-   **`MediaRequestCallback`**: `(state: MediaRequestState) => void`
+    -   A callback function invoked with state updates during the media generation lifecycle.
+-   **`MediaRequestState`**:
+    -   `requestId: string`: Unique ID for the request.
+    -   `generating: boolean`: True if the AI is still generating media.
+    -   `error: string | null`: An error message if an error occurred.
+    -   `mediaAttachments: PoeMessageAttachment[]`: An array of `PoeMessageAttachment` objects representing the generated media.
+    -   `rawResponse?: PoeAiRequestState | null`: The raw state object from the underlying `usePoeAi` hook.
+-   **`MediaRequestOptions`**:
+    -   `simulatedResponseOverride?: PoeMessage[] | null`: Specific simulated messages for this request.
+    -   `attachments?: File[]`: An array of `File` objects to send *with* the prompt to the AI.
+    -   `openChat?: boolean`: Whether to attempt to open the Poe chat interface (defaults to `false` or as per `usePoeAi` default).
+
+
 
 ### `useLogger(logLevelInput?: string)`
 -   **Returns**: `{ logs: LogEntry[], logger: Logger }`
@@ -415,6 +823,18 @@ export default MyDataPersistenceComponent;
 -   `migrate?: (loadedData: any, loadedVersion: number) => T | Promise<T>`: Function to migrate older data structures.
 -   `validate?: (data: T) => boolean | Promise<boolean>`: Function to validate loaded (and possibly migrated) data.
 -   **`VersionedData`**: Interface `{ version: number; [key: string]: any; }` that your data structure must implement.
+
+### `complexResponseParser(rawText: string, options?: ComplexParserOptions)`
+
+-   **Returns**: `Result<ParsedComplexAiResponse, Error>`
+    -   A `Result` tuple: `[ParsedComplexAiResponse, null]` on successful parsing, or `[null, Error]` if an error occurs (e.g., malformed JSON within a declared JSON block).
+-   **`rawText: string`**: The raw string output from the AI to be parsed.
+-   **`options?: ComplexParserOptions`**:
+    -   `responseStartTag?: string`: Custom string marking the beginning of the main response block (defaults to `"<response>"`).
+    -   `responseEndTag?: string`: Custom string marking the end of the main response block (defaults to `"</response>"`).
+-   **`ParsedComplexAiResponse`** (Interface for the successfully parsed data):
+    -   `response: string`: The extracted textual content from between the response tags.
+    -   `data?: unknown`: The parsed data from the ` ```json ... ``` ` block, if present and valid. This key is absent if no JSON block is found.
 
 ### Poe Types
 The library exports various types from `src/types/Poe.ts` (e.g., `PoeMessage`, `PoeMessageAttachment`, `PoeSendUserMessageResult`, `PoeEmbedAPIError`) for strong typing when working with the Poe API. It also augments the global `Window` interface to include `window.Poe`.
