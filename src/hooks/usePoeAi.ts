@@ -441,7 +441,7 @@ export default function usePoeAi(
         );
 
         if (dispatchError) {
-            let errorMsg = `[ReqID: ${requestId}] Error during message dispatch.`;
+            let errorMsg: string;
             /* v8 ignore next 2 */ // This can not be tested unless we mock the Poe API
             if (dispatchError instanceof PoeEmbedAPIError) {
                 errorMsg = `[ReqID: ${requestId}] Poe API Error (${dispatchError.errorType}) during dispatch: ${dispatchError.message}`;

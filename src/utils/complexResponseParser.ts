@@ -54,7 +54,7 @@ export const complexResponseParser = (
     const endTag = options?.responseEndTag ?? DEFAULT_RESPONSE_END_TAG;
 
     let responseContent = "";
-    let textAfterResponseBlock = rawText; // Start with the full text for JSON searching
+    let textAfterResponseBlock: string;
 
     // 1. Extract content between responseStartTag and responseEndTag
     const responseStartIndex = rawText.indexOf(startTag);
