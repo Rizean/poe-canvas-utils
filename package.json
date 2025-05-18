@@ -1,6 +1,6 @@
 {
   "name": "@rizean/poe-canvas-utils",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Utility hooks for Poe Canvas integration and logging.",
   "type": "module",
   "main": "./dist/poe-canvas-utils.umd.cjs",
