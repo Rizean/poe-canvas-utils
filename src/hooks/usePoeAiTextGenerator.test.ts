@@ -71,10 +71,6 @@ describe('usePoeAiTextGenerator', () => {
         const prompt = "Generate text";
 
         act(() => {
-            // FIXME: TS2345: Argument of type MockedFunction<TextRequestCallback<string>> is not assignable to parameter of type TextRequestCallback<undefined>
-            //  Types of parameters state and state are incompatible.
-            //  Type TextRequestState<undefined> is not assignable to type TextRequestState<string>
-            //  Type undefined is not assignable to type string
             // @ts-expect-error: Mocking the sendTextMessage function
             sendTextMessage(prompt, mockCallback);
         });
