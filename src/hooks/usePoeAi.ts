@@ -376,11 +376,11 @@ export default function usePoeAi(
 
 
     // --- sendToAI Function (Returned to Consumer) ---
-    const sendToAI = useCallback(async ( // Make sendToAI async to use await with tryCatchAsync
+    const sendToAI = useCallback(async (
         prompt: string,
         callback: RequestCallback,
         requestOptions?: RequestOptions
-    ): Promise<void> => { // Return Promise<void> because of async
+    ): Promise<void> => {
         const requestId = generateRequestId();
         const {stream = false, openChat = false, attachments, simulatedResponseOverride} = requestOptions ?? {};
 
