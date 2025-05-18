@@ -10,6 +10,24 @@ export type {
 } from './hooks/usePoeAi';
 export {simulationSendUserMessageResult} from './hooks/usePoeAi';
 
+// ---- usePoeAiTextGenerator ----
+export {default as usePoeAiTextGenerator} from './hooks/usePoeAiTextGenerator';
+export type {
+    TextRequestState,
+    TextRequestCallback,
+    TextRequestOptions,
+    UseAiTextOptions,
+} from './hooks/usePoeAiTextGenerator';
+
+// ---- usePoeAiMediaGenerator ----
+export {default as usePoeAiMediaGenerator} from './hooks/usePoeAiMediaGenerator';
+export type {
+    MediaRequestState,
+    MediaRequestCallback,
+    MediaRequestOptions,
+    UseAiMediaOptions,
+} from './hooks/usePoeAiMediaGenerator';
+
 // ---- useLogger ----
 export {default as useLogger} from './hooks/useLogger';
 export type {
@@ -29,6 +47,9 @@ export {applyGeminiThinkingFilter} from './utils/geminiFilter';
 export {saveDataToFile, loadDataFromFile} from './utils/storage'; // Updated function names
 export type {VersionedData, LoadOptions as StorageLoadOptions} from './utils/storage';
 
+// ---- complexResponseParser ----
+export {complexResponseParser} from './utils/complexResponseParser';
+export type {ParsedComplexAiResponse, ComplexParserOptions} from './utils/complexResponseParser';
 
 // ---- Poe.ts ----
 export type {
